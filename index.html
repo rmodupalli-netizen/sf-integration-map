@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Salesforce Integration Map</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #080b14; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; width: 100vw; height: 100vh; }
+  #canvas { width: 100vw; height: 100vh; }
+
+  .tooltip {
+    position: fixed; background: rgba(10,14,28,0.98); border: 1px solid #2d3f5a;
+    color: #e2e8f0; font-size: 12px; padding: 11px 14px; border-radius: 10px;
+    pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 99;
+    max-width: 300px; line-height: 1.7;
+  }
+  .tip-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .tip-dir { font-size: 11px; font-weight: 600; margin-bottom: 7px; display: flex; align-items: center; gap: 5px; }
+  .tip-section { margin-top: 6px; }
+  .tip-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: #475569; margin-bottom: 3px; }
+  .tip-payload { font-size: 11px; color: #94a3b8; line-height: 1.6; }
+  .tip-payload span { display: inline-block; background: rgba(255,255,255,0.05); border-radius: 4px; padding: 1px 6px; margin: 1px 2px 1px 0; font-size: 10.5px; }
+  .tip-sep { border: none; border-top: 1px solid #1e2a3a; margin: 7px 0; }
+
+  #legend-dir {
+    position: fixed; bottom: 20px; right: 20px;
+    background: rgba(10,14,28,0.92); border: 1px solid #1e2535; border-radius: 10px;
+    padding: 11px 15px; display: flex; flex-direction: column; gap: 6px;
+  }
+  #legend-dir h4 { font-size: 9.5px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+  .leg-row { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: #94a3b8; }
+  .leg-arrow { font-size: 13px; width: 16px; text-align: center; }
+
+  #legend-cat {
+    position: fixed; bottom: 20px; left: 20px;
+    display: flex; flex-wrap: wrap; gap: 5px; max-width: 480px;
+  }
+  .leg-cat { display: flex; align-items: center; gap: 5px; background: rgba(10,14,28,0.85); border: 1px solid #1e2535; border-radius: 20px; padding: 3px 9px; font-size: 10px; color: #94a3b8; }
+  .leg-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  #header { position: fixed; top: 0; left: 0; right: 0; background: linear-gradient(180deg,rgba(8,11,20,0.98) 65%,transparent); padding: 14px 22px 30px; display: flex; align-items: center; gap: 10px; pointer-events: none; }
+  #header h1 { font-size: 0.95rem; font-weight: 600; color: #cbd5e1; }
+  #header small { color: #475569; font-size: 0.72rem; margin-left: auto; }
+  #hint { position: fixed; top: 54px; right: 20px; color: #2d3f55; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <svg width="24" height="24" viewBox="0 0 60 40"><ellipse cx="30" cy="20" rx="28" ry="16" fill="#00A1E0"/><ellipse cx="30" cy="20" rx="17" ry="9" fill="#fff"/></svg>
+  <h1>Salesforce Production — Integration Map</h1>
+  <small>Second Nature &bull; rmodupalli@secondnature.com</small>
+</div>
+<div id="hint">Scroll to zoom &bull; Drag to pan/nodes &bull; Hover nodes for payload details</div>
+
+<svg id="canvas"></svg>
+<div class="tooltip" id="tip"></div>
+<div id="legend-dir">
+  <h4>Data Flow</h4>
+  <div class="leg-row"><span class="leg-arrow" style="color:#22c55e">→</span> Outbound (SF sends data out)</div>
+  <div class="leg-row"><span class="leg-arrow" style="color:#60a5fa">←</span> Inbound (data flows into SF)</div>
+  <div class="leg-row"><span class="leg-arrow" style="color:#a78bfa">⇄</span> Bidirectional</div>
+</div>
+<div id="legend-cat"></div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+const dirColor = { in:"#60a5fa", out:"#22c55e", both:"#a78bfa" };
+const dirLabel = { in:"Inbound → Salesforce", out:"Outbound from Salesforce", both:"Bidirectional" };
+const dirArrow = { in:"←", out:"→", both:"⇄" };
+
+const categories = [
+  { id:"sales", label:"Sales & CRM", icon:"💼", color:"#f97316", tools:[
+    { name:"HubSpot",            dir:"both", inbound:["Contact updates","Company data","Deal stage changes"], outbound:["Leads","Contacts","Accounts","Opportunities"] },
+    { name:"Gong Canvas",        dir:"in",   inbound:["Call recordings","AI insights","Rep scorecards"], outbound:[] },
+    { name:"Gong Deals",         dir:"in",   inbound:["Deal risk scores","Pipeline intelligence"], outbound:[] },
+    { name:"Gong Interaction",   dir:"in",   inbound:["Call/email activity","Talk-time stats","Sentiment"], outbound:[] },
+    { name:"Chili Piper",        dir:"both", inbound:["Meeting booked events","Lead routing outcomes"], outbound:["Lead/Contact data","Availability slots"] },
+    { name:"Totango",            dir:"both", inbound:["Health scores","Churn risk flags","Segments"], outbound:["Account","Contact","Opportunity data"] },
+    { name:"Totango Gateway",    dir:"both", inbound:["CS touchpoints","Success plans"], outbound:["Account & Contract data"] },
+    { name:"LinkedIn Sales Nav", dir:"in",   inbound:["Contact enrichment","Company insights","InMail activity"], outbound:[] },
+    { name:"SalesforceIQ",       dir:"both", inbound:["Email/calendar activity","Relationship signals"], outbound:["Contact","Account data"] },
+    { name:"OIQ Integration",    dir:"in",   inbound:["Org intelligence","Contact enrichment"], outbound:[] },
+  ]},
+  { id:"docs", label:"Docs & eSign", icon:"✍️", color:"#a855f7", tools:[
+    { name:"DocuSign",          dir:"both", inbound:["Signature status","Completed envelopes","Audit trails"], outbound:["Contact info","Opportunity data","Contract fields"] },
+    { name:"HelloSign",         dir:"both", inbound:["Signature status","Signed documents"], outbound:["Signer info","Document templates","Field data"] },
+    { name:"Conga Composer",    dir:"out",  inbound:[], outbound:["Quote/Opportunity fields","Contact info","Product line items"] },
+    { name:"Conga CFQ",         dir:"out",  inbound:[], outbound:["CPQ quote data","Pricing","Product configs"] },
+    { name:"Conga Invoice NA",  dir:"both", inbound:["Invoice status","Payment confirmations"], outbound:["Order data","Billing address","Line items"] },
+    { name:"Conga Invoice EU",  dir:"both", inbound:["Invoice status","VAT details"], outbound:["Order data","EU billing info"] },
+    { name:"Conga Invoice AP",  dir:"both", inbound:["Invoice status","AP confirmations"], outbound:["Order data","AP billing info"] },
+    { name:"Premium Conga",     dir:"both", inbound:["Invoice status","Payment events"], outbound:["Account","Order","Contract data"] },
+    { name:"Conga Inv. Auto",   dir:"both", inbound:["Batch invoice results","Error logs"], outbound:["Scheduled invoice triggers","Order records"] },
+  ]},
+  { id:"marketing", label:"Marketing", icon:"📣", color:"#ec4899", tools:[
+    { name:"MailChimp",       dir:"both", inbound:["Campaign stats","Email opens/clicks","Unsubscribes","Bounces"], outbound:["Contact lists","Email segments","Lead data"] },
+    { name:"SurveyMonkey",    dir:"both", inbound:["Survey responses","NPS scores","Completion status"], outbound:["Contact data","Survey distribution lists"] },
+    { name:"Highspot",        dir:"both", inbound:["Content engagement","View/share stats","Pitch activity"], outbound:["Contact/Account context","Opportunity stage"] },
+    { name:"Highspot Latest", dir:"both", inbound:["Updated engagement metrics","Buyer signals"], outbound:["Live opportunity data","Rep assignments"] },
+    { name:"Handwrytten",     dir:"out",  inbound:[], outbound:["Recipient name/address","Card message","Trigger event"] },
+    { name:"BeeFree",         dir:"out",  inbound:[], outbound:["Email templates","Contact data","Campaign content"] },
+  ]},
+  { id:"integration", label:"Integration & ETL", icon:"🔗", color:"#10b981", tools:[
+    { name:"MuleSoft JWT",        dir:"both", inbound:["Transformed records from external systems","Event triggers"], outbound:["SF object data","REST API responses"] },
+    { name:"SNCallCenter",        dir:"both", inbound:["Call logs","Dispositions","Call recordings metadata"], outbound:["Contact/Lead info","Account data for dialing"] },
+    { name:"SNCallCenter REST",   dir:"both", inbound:["REST call events","CTI screen pop data"], outbound:["Contact lookup results","Case data"] },
+    { name:"MatillionETL",        dir:"in",   inbound:["Transformed warehouse data","Batch record loads"], outbound:[] },
+    { name:"Zapier",              dir:"both", inbound:["Trigger events from 3rd-party apps","New/updated records"], outbound:["SF record data","Field values for mapped actions"] },
+    { name:"Slack",               dir:"both", inbound:["SF record update commands","Approval responses"], outbound:["Record alerts","Deal notifications","Approval requests"] },
+    { name:"monday.com",          dir:"both", inbound:["Task/project status updates","Board item changes"], outbound:["Account","Contact","Opportunity data"] },
+    { name:"Xappex G-Connector",  dir:"both", inbound:["Google Sheets data","Bulk imports"], outbound:["SF query results","Report data to Sheets"] },
+    { name:"Google Colab",        dir:"out",  inbound:[], outbound:["SOQL query results","Dataset exports","ML training data"] },
+  ]},
+  { id:"namedcred", label:"Named Credentials", icon:"🔑", color:"#60a5fa", tools:[
+    { name:"Heap Analytics API",   dir:"out",  inbound:[], outbound:["User/account identifiers","Custom event metadata"] },
+    { name:"Highspot API",         dir:"out",  inbound:[], outbound:["SF record context","User/account data"] },
+    { name:"GitHub (DevOps)",      dir:"both", inbound:["PR/commit status","Build results"], outbound:["Metadata packages","Deployment configs"] },
+    { name:"Bitbucket (DevOps)",   dir:"both", inbound:["PR/commit status","Pipeline results"], outbound:["Metadata packages","Branch info"] },
+    { name:"DevOps Center Svc",    dir:"both", inbound:["Deployment pipeline status"], outbound:["Change bundle metadata"] },
+    { name:"Report Sender Heroku", dir:"out",  inbound:[], outbound:["Scheduled report data","CSV exports"] },
+    { name:"Mass Action Test",     dir:"both", inbound:["Test execution results"], outbound:["Batch action payloads"] },
+  ]},
+  { id:"identity", label:"Identity & Access", icon:"🔐", color:"#eab308", tools:[
+    { name:"Okta Provisioning", dir:"in",   inbound:["User provisioning","SSO tokens","Profile updates","Deprovisioning events"], outbound:[] },
+    { name:"Sumo Logic",        dir:"out",  inbound:[], outbound:["Login events","Audit logs","API access logs","Security events"] },
+    { name:"Bloom",             dir:"in",   inbound:["Auth tokens","User sessions","Permission grants"], outbound:[] },
+    { name:"CF7",               dir:"in",   inbound:["Web form submissions","Lead capture data"], outbound:[] },
+    { name:"ClickDeploy.io",    dir:"both", inbound:["Deployment status","Release confirmations"], outbound:["Metadata for deployment","Org credentials"] },
+    { name:"Claude MCP",        dir:"both", inbound:["AI-generated insights","Query results"], outbound:["SF data for AI context","SOQL results"] },
+    { name:"FEAdmin",           dir:"both", inbound:["Admin operation results"], outbound:["Org config","User/permission data"] },
+  ]},
+  { id:"finance", label:"Finance & Payments", icon:"💳", color:"#ef4444", tools:[
+    { name:"Stripe",        dir:"both", inbound:["Payment status","Subscription events","Invoice updates","Refunds"], outbound:["Customer data","Subscription plans","Billing amounts"] },
+    { name:"Plaid",         dir:"in",   inbound:["Bank account verification","ACH details","Financial institution data"], outbound:[] },
+    { name:"NetSuite",      dir:"both", inbound:["Invoice status","GL entries","Financial records"], outbound:["Order data","Customer info","Revenue data"] },
+    { name:"Authorize.net", dir:"out",  inbound:[], outbound:["Payment requests","Card data (tokenized)","Transaction amounts"] },
+  ]},
+  { id:"analytics", label:"Analytics & Data", icon:"📊", color:"#22d3ee", tools:[
+    { name:"Heap Analytics",  dir:"out",  inbound:[], outbound:["User behavior events","Account IDs","Custom properties"] },
+    { name:"ZoomInfo",        dir:"in",   inbound:["Contact enrichment","Verified emails/phones","Job titles","Company firmographics"], outbound:[] },
+    { name:"eContacts",       dir:"both", inbound:["Scanned/enriched contact data"], outbound:["Existing contact records","Duplicate check data"] },
+    { name:"FieldTrip API",   dir:"in",   inbound:["Field usage analytics","Data quality scores"], outbound:[] },
+    { name:"Google Calendar", dir:"both", inbound:["Meeting events","Attendee updates","Calendar invites"], outbound:["Contact/Lead data","Event details"] },
+    { name:"Dropbox",         dir:"both", inbound:["File metadata","Shared link info"], outbound:["Generated documents","Attachments"] },
+  ]},
+  { id:"devops", label:"DevOps & Dev Tools", icon:"🛠️", color:"#84cc16", tools:[
+    { name:"DevOps Center",      dir:"both", inbound:["Pipeline & deploy status"], outbound:["Metadata changes","Work items"] },
+    { name:"GitHub",             dir:"both", inbound:["PR/commit/build status"], outbound:["Metadata packages"] },
+    { name:"Bitbucket",          dir:"both", inbound:["PR/pipeline status"], outbound:["Metadata packages"] },
+    { name:"Workbench",          dir:"both", inbound:["Query/import results"], outbound:["SOQL queries","Metadata/data exports"] },
+    { name:"Dataloader Bulk",    dir:"both", inbound:["Bulk record imports","Upserts"], outbound:["Bulk data exports","CSV files"] },
+    { name:"Dataloader Partner", dir:"both", inbound:["Record imports via SOAP"], outbound:["Data exports via SOAP"] },
+    { name:"Force.com IDE",      dir:"both", inbound:["Metadata saves"], outbound:["Apex/VF/LWC source"] },
+    { name:"Ant Migration",      dir:"both", inbound:["Metadata deploys"], outbound:["Metadata retrieval packages"] },
+    { name:"Vision-e Scan",      dir:"in",   inbound:["Scanned business card data","Contact fields"], outbound:[] },
+    { name:"SF for Outlook",     dir:"both", inbound:["Emails/calendar events synced in"], outbound:["Contact","Opportunity context for Outlook"] },
+  ]},
+];
+
+// Build legend
+const legendCat = document.getElementById("legend-cat");
+categories.forEach(c => {
+  const d = document.createElement("div"); d.className = "leg-cat";
+  d.innerHTML = `<div class="leg-dot" style="background:${c.color}"></div>${c.icon} ${c.label}`;
+  legendCat.appendChild(d);
+});
+
+const W = window.innerWidth, H = window.innerHeight;
+const svg = d3.select("#canvas").attr("width", W).attr("height", H);
+const g = svg.append("g");
+svg.call(d3.zoom().scaleExtent([0.2,3.5]).on("zoom", e => g.attr("transform", e.transform)));
+
+const nodes = [{ id:"salesforce", type:"sf", label:"Salesforce", r:54 }];
+const links = [];
+
+categories.forEach(cat => {
+  nodes.push({ id:cat.id, type:"category", label:cat.label, icon:cat.icon, color:cat.color, r:30, toolCount:cat.tools.length, tools:cat.tools });
+  links.push({ source:"salesforce", target:cat.id, type:"cat", color:cat.color });
+  cat.tools.forEach((t,i) => {
+    const tid = cat.id+"_"+i;
+    nodes.push({ id:tid, type:"tool", label:t.name, dir:t.dir, color:cat.color, r:11, catId:cat.id, inbound:t.inbound, outbound:t.outbound });
+    links.push({ source:cat.id, target:tid, type:"tool", dir:t.dir, color:cat.color });
+  });
+});
+
+const sim = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).id(d=>d.id).distance(d => d.type==="cat" ? 170 : 88).strength(1))
+  .force("charge", d3.forceManyBody().strength(d => d.type==="sf" ? -3500 : d.type==="category" ? -750 : -90))
+  .force("center", d3.forceCenter(W/2, H/2))
+  .force("collision", d3.forceCollide(d => d.r+10))
+  .alphaDecay(0.02);
+
+const defs = svg.append("defs");
+const sfGrad = defs.append("radialGradient").attr("id","sfGrad");
+sfGrad.append("stop").attr("offset","0%").attr("stop-color","#1d6fa4");
+sfGrad.append("stop").attr("offset","100%").attr("stop-color","#001a35");
+
+const glow = defs.append("filter").attr("id","glow").attr("x","-40%").attr("y","-40%").attr("width","180%").attr("height","180%");
+glow.append("feGaussianBlur").attr("stdDeviation","5").attr("result","coloredBlur");
+const fm = glow.append("feMerge");
+fm.append("feMergeNode").attr("in","coloredBlur");
+fm.append("feMergeNode").attr("in","SourceGraphic");
+
+["in","out","both"].forEach(dir => {
+  const col = dirColor[dir];
+  defs.append("marker").attr("id","arrow-fwd-"+dir)
+    .attr("viewBox","0 -4 8 8").attr("refX",8).attr("refY",0)
+    .attr("markerWidth",5).attr("markerHeight",5).attr("orient","auto")
+    .append("path").attr("d","M0,-4L8,0L0,4").attr("fill",col);
+  defs.append("marker").attr("id","arrow-rev-"+dir)
+    .attr("viewBox","0 -4 8 8").attr("refX",0).attr("refY",0)
+    .attr("markerWidth",5).attr("markerHeight",5).attr("orient","auto-start-reverse")
+    .append("path").attr("d","M8,-4L0,0L8,4").attr("fill",col);
+});
+
+const link = g.append("g").selectAll("line").data(links).join("line")
+  .attr("stroke", d => d.type==="cat" ? d.color+"55" : dirColor[d.dir]+"88")
+  .attr("stroke-width", d => d.type==="cat" ? 1.5 : 1.2)
+  .each(function(d) {
+    if (d.type==="tool") {
+      const s = d3.select(this);
+      if (d.dir==="out")       s.attr("marker-end","url(#arrow-fwd-out)");
+      else if (d.dir==="in")   s.attr("marker-start","url(#arrow-rev-in)");
+      else                     s.attr("marker-end","url(#arrow-fwd-both)").attr("marker-start","url(#arrow-rev-both)");
+    }
+  });
+
+const nodeG = g.append("g").selectAll("g").data(nodes).join("g")
+  .call(d3.drag()
+    .on("start",(e,d)=>{ if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+    .on("drag",(e,d)=>{ d.fx=e.x; d.fy=e.y; })
+    .on("end",(e,d)=>{ if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; })
+  );
+
+// SF node
+const sfN = nodeG.filter(d=>d.type==="sf");
+sfN.append("circle").attr("r",56).attr("fill","#001a35").attr("stroke","#00A1E0").attr("stroke-width",2.5).attr("filter","url(#glow)");
+sfN.append("circle").attr("r",52).attr("fill","url(#sfGrad)");
+sfN.append("text").attr("text-anchor","middle").attr("dy","-8").attr("font-size","13px").attr("font-weight","700").attr("fill","#fff").attr("pointer-events","none").text("Salesforce");
+sfN.append("text").attr("text-anchor","middle").attr("dy","8").attr("font-size","9.5px").attr("fill","#7dd3fc").attr("pointer-events","none").text("Production");
+sfN.append("text").attr("text-anchor","middle").attr("dy","22").attr("font-size","7.5px").attr("fill","#334155").attr("pointer-events","none").text("secondnature.com");
+
+// Category nodes
+const catN = nodeG.filter(d=>d.type==="category");
+catN.append("circle").attr("r",d=>d.r).attr("fill",d=>d.color+"18").attr("stroke",d=>d.color).attr("stroke-width",2).attr("filter","url(#glow)");
+catN.append("text").attr("text-anchor","middle").attr("dy","-5").attr("font-size","15px").attr("pointer-events","none").text(d=>d.icon);
+catN.append("text").attr("text-anchor","middle").attr("dy","10").attr("font-size","7px").attr("font-weight","700").attr("fill",d=>d.color).attr("pointer-events","none").text(d=>d.label.split("&")[0].trim());
+
+// Tool nodes
+const toolN = nodeG.filter(d=>d.type==="tool");
+toolN.append("circle").attr("r",d=>d.r).attr("fill",d=>d.color+"1a").attr("stroke",d=>dirColor[d.dir]).attr("stroke-width",1.5);
+toolN.append("circle").attr("cx",7).attr("cy",-7).attr("r",4).attr("fill",d=>dirColor[d.dir]).attr("stroke","#080b14").attr("stroke-width",1);
+toolN.append("text").attr("x",7).attr("y",-7).attr("text-anchor","middle").attr("dominant-baseline","central").attr("font-size","5px").attr("fill","#080b14").attr("pointer-events","none").text(d=>d.dir==="in"?"←":d.dir==="out"?"→":"⇄");
+toolN.append("text").attr("text-anchor","middle").attr("dy","3px").attr("font-size","5px").attr("fill","#94a3b8").attr("pointer-events","none").text(d=>d.label.length>13?d.label.substring(0,12)+"…":d.label);
+
+// Tooltip
+const tip = document.getElementById("tip");
+
+function makePayloadTags(arr, color) {
+  return arr.map(p=>`<span style="border:1px solid ${color}33;color:${color}cc">${p}</span>`).join(" ");
+}
+
+nodeG.on("mouseover",(e,d)=>{
+  if (d.type==="sf") return;
+  let html = "";
+  if (d.type==="category") {
+    const cat = categories.find(c=>c.id===d.id);
+    const counts = {in:0,out:0,both:0};
+    cat.tools.forEach(t=>counts[t.dir]++);
+    html = `<div class="tip-title" style="color:${d.color}">${d.icon} ${d.label}</div>`+
+      `<div style="font-size:11px;color:#64748b">${cat.tools.length} integrations</div>`+
+      `<hr class="tip-sep">`+
+      `<div style="font-size:11px;display:flex;gap:12px">`+
+      `<span style="color:#60a5fa">← Inbound: ${counts.in}</span>`+
+      `<span style="color:#22c55e">→ Outbound: ${counts.out}</span>`+
+      `<span style="color:#a78bfa">⇄ Both: ${counts.both}</span>`+
+      `</div>`;
+  } else {
+    const dc = dirColor[d.dir];
+    html = `<div class="tip-title" style="color:${d.color}">${d.label}</div>`+
+      `<div class="tip-dir" style="color:${dc}">${dirArrow[d.dir]} ${dirLabel[d.dir]}</div>`;
+    if (d.dir==="in" || d.dir==="both") {
+      html += `<div class="tip-section">`+
+        `<div class="tip-label" style="color:#60a5fa44">← Data received by Salesforce</div>`+
+        `<div class="tip-payload">${makePayloadTags(d.inbound,"#60a5fa")}</div>`+
+        `</div>`;
+    }
+    if ((d.dir==="in"||d.dir==="both") && (d.dir==="out"||d.dir==="both")) {
+      html += `<hr class="tip-sep">`;
+    }
+    if (d.dir==="out" || d.dir==="both") {
+      html += `<div class="tip-section">`+
+        `<div class="tip-label" style="color:#22c55e44">→ Data sent from Salesforce</div>`+
+        `<div class="tip-payload">${makePayloadTags(d.outbound,"#22c55e")}</div>`+
+        `</div>`;
+    }
+  }
+  tip.innerHTML = html; tip.style.opacity="1";
+  tip.style.left=(e.clientX+15)+"px"; tip.style.top=(e.clientY-15)+"px";
+}).on("mousemove",e=>{
+  const tx = e.clientX+15, ty = e.clientY-15;
+  tip.style.left=Math.min(tx, window.innerWidth-320)+"px";
+  tip.style.top=Math.max(ty,10)+"px";
+}).on("mouseout",()=>{ tip.style.opacity="0"; });
+
+sim.on("tick",()=>{
+  link.attr("x1",d=>d.source.x).attr("y1",d=>d.source.y).attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+  nodeG.attr("transform",d=>`translate(${d.x},${d.y})`);
+});
+
+window.addEventListener("resize",()=>{
+  svg.attr("width",window.innerWidth).attr("height",window.innerHeight);
+  sim.force("center",d3.forceCenter(window.innerWidth/2,window.innerHeight/2)).restart();
+});
+</script>
+</body>
+</html>
