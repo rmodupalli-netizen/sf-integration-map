@@ -84,14 +84,6 @@ const categories = [
   ]},
   { id:"docs", label:"Docs & eSign", icon:"✍️", color:"#a855f7", tools:[
     { name:"DocuSign",          dir:"both", inbound:["Signature status","Completed envelopes","Audit trails"], outbound:["Contact info","Opportunity data","Contract fields"] },
-    { name:"HelloSign",         dir:"both", inbound:["Signature status","Signed documents"], outbound:["Signer info","Document templates","Field data"] },
-    { name:"Conga Composer",    dir:"out",  inbound:[], outbound:["Quote/Opportunity fields","Contact info","Product line items"] },
-    { name:"Conga CFQ",         dir:"out",  inbound:[], outbound:["CPQ quote data","Pricing","Product configs"] },
-    { name:"Conga Invoice NA",  dir:"both", inbound:["Invoice status","Payment confirmations"], outbound:["Order data","Billing address","Line items"] },
-    { name:"Conga Invoice EU",  dir:"both", inbound:["Invoice status","VAT details"], outbound:["Order data","EU billing info"] },
-    { name:"Conga Invoice AP",  dir:"both", inbound:["Invoice status","AP confirmations"], outbound:["Order data","AP billing info"] },
-    { name:"Premium Conga",     dir:"both", inbound:["Invoice status","Payment events"], outbound:["Account","Order","Contract data"] },
-    { name:"Conga Inv. Auto",   dir:"both", inbound:["Batch invoice results","Error logs"], outbound:["Scheduled invoice triggers","Order records"] },
   ]},
   { id:"marketing", label:"Marketing", icon:"📣", color:"#ec4899", tools:[
     { name:"MailChimp",       dir:"both", inbound:["Campaign stats","Email opens/clicks","Unsubscribes","Bounces"], outbound:["Contact lists","Email segments","Lead data"] },
@@ -131,10 +123,7 @@ const categories = [
     { name:"FEAdmin",           dir:"both", inbound:["Admin operation results"], outbound:["Org config","User/permission data"] },
   ]},
   { id:"finance", label:"Finance & Payments", icon:"💳", color:"#ef4444", tools:[
-    { name:"Stripe",        dir:"both", inbound:["Payment status","Subscription events","Invoice updates","Refunds"], outbound:["Customer data","Subscription plans","Billing amounts"] },
-    { name:"Plaid",         dir:"in",   inbound:["Bank account verification","ACH details","Financial institution data"], outbound:[] },
     { name:"NetSuite",      dir:"both", inbound:["Invoice status","GL entries","Financial records"], outbound:["Order data","Customer info","Revenue data"] },
-    { name:"Authorize.net", dir:"out",  inbound:[], outbound:["Payment requests","Card data (tokenized)","Transaction amounts"] },
   ]},
   { id:"analytics", label:"Analytics & Data", icon:"📊", color:"#22d3ee", tools:[
     { name:"Heap Analytics",  dir:"out",  inbound:[], outbound:["User behavior events","Account IDs","Custom properties"] },
@@ -142,19 +131,15 @@ const categories = [
     { name:"eContacts",       dir:"both", inbound:["Scanned/enriched contact data"], outbound:["Existing contact records","Duplicate check data"] },
     { name:"FieldTrip API",   dir:"in",   inbound:["Field usage analytics","Data quality scores"], outbound:[] },
     { name:"Google Calendar", dir:"both", inbound:["Meeting events","Attendee updates","Calendar invites"], outbound:["Contact/Lead data","Event details"] },
-    { name:"Dropbox",         dir:"both", inbound:["File metadata","Shared link info"], outbound:["Generated documents","Attachments"] },
   ]},
   { id:"devops", label:"DevOps & Dev Tools", icon:"🛠️", color:"#84cc16", tools:[
     { name:"DevOps Center",      dir:"both", inbound:["Pipeline & deploy status"], outbound:["Metadata changes","Work items"] },
     { name:"GitHub",             dir:"both", inbound:["PR/commit/build status"], outbound:["Metadata packages"] },
     { name:"Bitbucket",          dir:"both", inbound:["PR/pipeline status"], outbound:["Metadata packages"] },
-    { name:"Workbench",          dir:"both", inbound:["Query/import results"], outbound:["SOQL queries","Metadata/data exports"] },
     { name:"Dataloader Bulk",    dir:"both", inbound:["Bulk record imports","Upserts"], outbound:["Bulk data exports","CSV files"] },
     { name:"Dataloader Partner", dir:"both", inbound:["Record imports via SOAP"], outbound:["Data exports via SOAP"] },
-    { name:"Force.com IDE",      dir:"both", inbound:["Metadata saves"], outbound:["Apex/VF/LWC source"] },
     { name:"Ant Migration",      dir:"both", inbound:["Metadata deploys"], outbound:["Metadata retrieval packages"] },
     { name:"Vision-e Scan",      dir:"in",   inbound:["Scanned business card data","Contact fields"], outbound:[] },
-    { name:"SF for Outlook",     dir:"both", inbound:["Emails/calendar events synced in"], outbound:["Contact","Opportunity context for Outlook"] },
   ]},
 ];
 
